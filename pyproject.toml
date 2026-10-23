@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hexredact"
+dynamic = ["version"]
+description = "Heavy, reversible redaction of PII, secrets and infrastructure identifiers in log files."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Michale McCarthy" }]
+requires-python = ">=3.9"
+dependencies = []
+keywords = ["redaction", "logs", "pii", "privacy", "security", "anonymization", "pseudonymization", "gdpr"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "Intended Audience :: System Administrators",
+  "Intended Audience :: Information Technology",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Topic :: Security",
+  "Topic :: System :: Logging",
+]
+
+[project.optional-dependencies]
+crypto = ["cryptography>=41"]
+dev = ["pytest>=7", "ruff>=0.5"]
+
+[project.urls]
+Homepage = "https://github.com/happygream/hexredact"
+Issues = "https://github.com/happygream/hexredact/issues"
+
+[project.scripts]
+hexredact = "hexredact.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "hexredact.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 135
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B"]
+ignore = ["E701", "E702", "E741", "B023"]

@@ -1,0 +1,13 @@
+Oct 23 10:15:02 web01 sshd[2211]: Accepted publickey for alice from 10.26.190.67 port 51234 ssh2
+Oct 23 10:15:09 web01 sshd[2212]: Failed password for invalid user deploybot from 203.0.113.77 port 40022 ssh2
+Oct 23 10:16:00 web01 sudo:     alice : TTY=pts/0 ; PWD=/home/alice ; USER=root ; COMMAND=/bin/ls
+2026-10-23T10:17:01.123Z db-primary.corp.example.co.uk postgres[99]: connection from 10.0.0.12:5432 user=svc_app
+support callback +44 20 7946 0958, mobile 07700 900123, US office (555) 123-4567
+upstream 8.8.8.8 via 172.16.4.4:8080 subnet 10.20.0.0/16 health 127.0.0.1 build 1.2.3 epoch 1729700000
+client fe80::1ff:fe23:4567:890a%eth0 mac aa:bb:cc:dd:ee:ff at 12:34:56
+signup alice.smith@example.com card 4111 1111 1111 1111 ni AB 12 34 56 C
+GET https://admin:hunter2@api.internal.lan/v1/users?id=8812&token=abc123secret
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbGljZSJ9.c2lnbmF0dXJlc2lnbmF0dXJl
+password="S3cr3t!" api_key=AKIAIOSFODNN7EXAMPLE CORP\jsmith opened \\FILESRV01\share
+java.lang.NullPointerException at com.example.App.main(App.java:42)
+web01 restarted; db-primary lag 3ms

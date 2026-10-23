@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+.ruff_cache/
+# never commit real output
+*_original/
+*_original.*
+*_redacted/
+*_redacted.*
+*_restored*
+*redaction_map*.json
+*redaction_report*

@@ -1,3 +1,11 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/banner-light.svg">
+    <img alt="hexredact - heavy, reversible log redaction" src="assets/banner-dark.svg" width="100%">
+  </picture>
+</p>
+
 # hexredact
 
 Heavy, reversible redaction of PII, secrets and infrastructure identifiers in log files.

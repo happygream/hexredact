@@ -50,7 +50,7 @@ def test_port_and_cidr_kept():
 
 def test_loopback_kept_by_default_and_optional():
     assert "127.0.0.1" in cats("hc 127.0.0.1")[0]
-    assert "127.0.0.1" not in cats("hc 127.0.0.1", keep_trivial_ips=False)[0]
+    assert cats("hc 127.0.0.1", keep_trivial_ips=False)[1] == ["IPV4_LOOP"]
 
 
 # ---- false positives that must survive --------------------------------

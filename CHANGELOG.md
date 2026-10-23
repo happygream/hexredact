@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Interactive mode uses arrow-key menus, a space-to-toggle detector checklist, and inline yes/no questions. No dependencies: `msvcrt` on Windows, `termios` elsewhere. Falls back to numbered prompts when input isn't a terminal.
+- `hexredact.bat` for Windows: double-click to open the wizard, or drag a file or folder onto it.
+- Paths dragged into the wizard have their quotes or escapes stripped.
+- Loopback and unspecified addresses get their own `LOOP` scope when `--redact-loopback` is on.
+- Map-protection wording is accurate on Windows. Hints print the command you actually launched with.
+
 ## 1.0.0 - 2026-10-23
 
 First public release.

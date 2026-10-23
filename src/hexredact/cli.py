@@ -348,39 +348,92 @@ def cmd_wizard(args) -> int:
     term = Term(color=False if getattr(args, "no_color", False) else None)
     term.banner(__version__)
     try:
-        return _wizard(term, getattr(args, "path", None))
+        rc = _wizard(term, getattr(args, "path", None))
     except (KeyboardInterrupt, EOFError):
         term.say("\n" + term.dim("aborted"))
-        return EXIT_ERR
+        rc = EXIT_ERR
+    except Exception as e:                 # never let a double-clicked window vanish on a traceback
+        if not getattr(args, "pause", False):
+            raise
+        term.error(f"{type(e).__name__}: {e}")
+        rc = EXIT_ERR
+    if getattr(args, "pause", False):
+        try:
+            term.out.write("\n" + term.dim("press Enter to close") + " ")
+            term.out.flush()
+            sys.stdin.readline()
+        except (KeyboardInterrupt, EOFError):
+            pass
+    return rc
+
+
+def _clean_path(raw: str) -> Path:
+    """Paths dragged into a terminal arrive quoted (Windows) or backslash-escaped (macOS)."""
+    raw = raw.strip().strip('"\'')
+    if os.name != "nt":
+        raw = re.sub(r"\\(.)", r"\1", raw)
+    return Path(raw).expanduser().resolve()
+
+
+def _ask_path(term, prompt: str, must_exist: bool = True, default: Optional[str] = None) -> Path:
+    while True:
+        p = _clean_path(term.ask(prompt + term.dim("  (drag a file or folder here)"), default))
+        if p.exists() or not must_exist:
+            return p
+        term.say(term.red("   not found: ") + str(p))
 
 
 def _wizard(term, pre_path: Optional[str]) -> int:
-    action = term.ask_choice("What do you want to do", [
-        "Redact a file or directory",
-        "Scan only (dry run, nothing written)",
+    pre = _clean_path(pre_path) if pre_path else None
+    if pre is not None and not pre.exists():
+        term.warn(f"{pre} not found")
+        pre = None
+
+    action = term.choose("What do you want to do", [
+        "Redact",
+        "Scan only",
         "Look up a token",
-        "Restore a redacted file or directory",
+        "Restore",
+    ], hints=[
+        "write a redacted copy, keep the original and a reverse map",
+        "dry run: show what would be redacted, write nothing",
+        "turn <TOKEN> back into the original value",
+        "rehydrate a redacted file or folder from its map",
     ])
-    if action == 3:
-        entries = load_map(Path(term.ask("Map file")))["entries"]
-        for r in lookup(entries, re.split(r"[\s,]+", term.ask("Token(s)"))):
-            term.say(f"   {r['token']}  ->  " + (r["value"] if r["value"] is not None else term.red("not in map")), force=True)
-        return EXIT_OK
-    if action == 4:
-        entries = load_map(Path(term.ask("Map file")))["entries"]
-        out = restore(entries, Path(term.ask("Redacted file or directory")).expanduser().resolve())
-        term.say(f"   restored -> {out}", force=True)
+
+    if action in (3, 4):
+        map_path = _ask_path(term, "Map file")
+        try:
+            entries = load_map(map_path)["entries"]
+        except MapError as e:
+            term.error(str(e))
+            return EXIT_ERR
+        if action == 3:
+            while True:
+                raw = term.ask("Token(s)  " + term.dim("Enter on its own to finish"))
+                toks = re.findall(r"<?[A-Z][A-Z0-9_]*_[0-9a-f]{10,16}>?", raw)
+                if not toks:
+                    return EXIT_OK
+                for r in lookup(entries, toks):
+                    val = r["value"] if r["value"] is not None else term.red("not in map")
+                    term.say(f"   {term.dim(r['token'])}  {val}", force=True)
+        out = restore(entries, _ask_path(term, "Redacted file or folder"))
+        term.say(f"   {term.green('restored')} -> {out}  " + term.dim(f"({PROTECTED}; contains the original values)"), force=True)
         return EXIT_OK
 
-    while True:
-        src = Path(term.ask("Path to a log file or directory", pre_path).strip().strip('"\'')).expanduser().resolve()
-        if src.exists():
-            break
-        term.say(term.red("   not found"))
+    if pre is not None:
+        src = pre
+        term.say(f"{term.green(term.g('✓', '+'))} Path  {term.cyan(str(src))}")
+    else:
+        src = _ask_path(term, "Path to a log file or folder")
     exts = DEFAULT_EXTS
     if src.is_dir():
         exts = normalise_exts(_split(term.ask("Extensions", ",".join(DEFAULT_EXTS))))
-        term.say(term.dim(f"   {len(collect(src, exts))} matching file(s); rotated .log.N and .gz included"))
+        n = len(collect(src, exts))
+        term.say(term.dim(f"   {n} matching file(s); rotated .log.N and .gz included"))
+        if not n:
+            term.error("no matching files in that folder")
+            return EXIT_ERR
 
     ns = argparse.Namespace(only=None, disable=None, terms=None, terms_file=None, allow=None,
                             no_auto_terms=False, redact_loopback=False, mode="token",
@@ -389,58 +442,49 @@ def _wizard(term, pre_path: Optional[str]) -> int:
     key, meta, map_pp = None, {"key_source": None}, None
 
     if action == 1:
-        term.section("Mode")
-        ns.mode = "token" if term.ask_choice("Choose", [
-            "Tokenise   keyed HMAC pseudonyms + reverse map " + term.dim("(recommended)"),
-            "Mask       [REDACTED:TYPE], irreversible",
+        ns.mode = "token" if term.choose("Mode", ["Tokenise", "Mask"], hints=[
+            "keyed pseudonyms + reverse map, so you can look values up later (recommended)",
+            "[REDACTED:TYPE] labels, irreversible, no map",
         ]) == 1 else "mask"
         if ns.mode == "token":
-            term.section("Token key")
-            if term.ask_choice("Choose", [
-                "Random     unique to this job",
-                "Passphrase same passphrase = same tokens across jobs",
+            if term.choose("Token key", ["Random", "Passphrase"], hints=[
+                "tokens unique to this job",
+                "same passphrase gives the same tokens across jobs",
             ]) == 1:
                 key, meta = random_key(), {"key_source": "random"}
             else:
                 key, meta = key_from_passphrase(term.ask_secret("token passphrase")), {"key_source": "passphrase-pbkdf2"}
             if have_crypto():
-                if term.ask_yn("Encrypt the reverse map", True):
+                if term.yes("Encrypt the reverse map", True):
                     map_pp = term.ask_secret("map passphrase")
             else:
                 term.say(term.yellow(f"   reverse map will be plaintext ({PROTECTED}). ")
                          + term.dim("pip install 'hexredact[crypto]' to encrypt it"))
 
-    term.section("Detectors " + term.dim("(heavy profile: everything on)"))
-    enabled = set(DETECTOR_NAMES)
-    while True:
-        for i, d in enumerate(DETECTORS, 1):
-            mark = term.green("[x]") if d.name in enabled else term.dim("[ ]")
-            term.say(f"   {mark} {i:>2}  {d.desc}")
-        v = term.ask("Toggle numbers, or Enter to accept")
-        if not v:
-            break
-        for t in re.split(r"[\s,]+", v):
-            if t.isdigit() and 1 <= int(t) <= len(DETECTORS):
-                enabled ^= {DETECTORS[int(t) - 1].name}
-    ns.only = ",".join(n for n in DETECTOR_NAMES if n in enabled) or "none"
-    if ns.only == "none":
-        term.error("no detectors enabled")
-        return EXIT_USAGE
+    picked = term.pick_many("Detectors", [d.desc for d in DETECTORS], set(range(len(DETECTORS))),
+                            details=[f"{d.name} -> {d.cat}" for d in DETECTORS])
+    ns.only = ",".join(DETECTORS[i].name for i in sorted(picked))
 
-    term.section("Terms")
-    ns.terms = term.ask("Extra terms to redact everywhere " + term.dim("(names, company, hosts; comma-separated)"))
-    ns.no_auto_terms = not term.ask_yn("Also redact this machine's hostname and your username", True)
+    ns.terms = term.ask("Extra terms to redact everywhere " + term.dim("(names, company, hosts; comma-separated, optional)"))
+    ns.no_auto_terms = not term.yes("Also redact this machine's hostname and your username", True)
     ns.allow = term.ask("Never redact " + term.dim("(comma-separated, optional)"))
-    ns.redact_loopback = not term.ask_yn("Keep loopback IPs (127.0.0.1, ::1, 0.0.0.0) readable", True)
+    ns.redact_loopback = not term.yes("Keep loopback IPs (127.0.0.1, ::1, 0.0.0.0) readable", True)
 
     r = _build(ns, term, key or random_key())
     if action == 2:
         res = run_scan(src, r, exts, term)
         term.section(f"Would redact  {term.dim(str(res.total) + ' item(s)')}")
         _print_totals(term, res)
+        r.reset_state()
+        pairs = preview_lines(src, r, exts)
+        if pairs:
+            term.section("Sample " + term.dim("(original lines shown - local terminal only)"))
+            for before, after in pairs:
+                term.say("  " + term.red("-") + " " + before[:160])
+                term.say("  " + term.green("+") + " " + after[:160])
+        term.say(term.dim("\n   nothing was written"))
         return EXIT_OK
 
-    files_learned = False
     term.section("Learning")
     from .job import discover, learn
     files, _ = discover(src, exts)
@@ -448,7 +492,6 @@ def _wizard(term, pre_path: Optional[str]) -> int:
         term.error("no matching text files found")
         return EXIT_ERR
     learn(files, r, term)
-    files_learned = True
 
     term.section("Preview " + term.dim("(first changed lines)"))
     pairs = preview_lines(src, r, exts)
@@ -457,18 +500,19 @@ def _wizard(term, pre_path: Optional[str]) -> int:
         term.say("  " + term.green("+") + " " + after[:160])
     if not pairs:
         term.say("   " + term.dim("nothing detected in the sample"))
+    term.say("")
 
     lay = plan_paths(src)
     exists = lay.original.exists() or lay.redacted.exists()
     if exists:
         term.warn(f"{lay.original.name} / {lay.redacted.name} already exist")
-    if not term.ask_yn("\nWrite redacted output" + (" and OVERWRITE" if exists else ""), not exists):
+    if not term.yes("Write redacted output" + (" and OVERWRITE" if exists else ""), not exists):
         term.say(term.dim("aborted"))
         return EXIT_ERR
     term.say("")
     try:
         res = run_redact(src, r, exts, term, overwrite=exists, map_passphrase=map_pp,
-                         meta=meta, already_learned=files_learned)
+                         meta=meta, already_learned=True)
     except JobError as e:
         term.error(str(e))
         return EXIT_ERR
@@ -537,6 +581,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("wizard", help="interactive mode (the default with no arguments)")
     p.add_argument("path", nargs="?")
     p.add_argument("--no-color", action="store_true")
+    p.add_argument("--pause", action="store_true", help=argparse.SUPPRESS)
     p.set_defaults(func=cmd_wizard)
     return ap
 

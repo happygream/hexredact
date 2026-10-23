@@ -142,7 +142,9 @@ class Redactor:
                 return None
             if self.keep_trivial_ips and _ip_is_trivial(ip):
                 return None
-            if ip.is_global:
+            if ip.is_loopback or ip.is_unspecified:
+                scope = "LOOP"
+            elif ip.is_global:
                 scope = "PUB"
             elif ip.is_link_local or (ip.version == 4 and any(ip in n for n in _RFC1918)) or \
                     (ip.version == 6 and ip in _ULA):

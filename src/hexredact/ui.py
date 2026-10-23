@@ -6,7 +6,7 @@ import os
 import shutil
 import sys
 import time
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Set
 
 
 def _enable_windows_vt() -> bool:
@@ -34,7 +34,12 @@ class Term:
         if color is None:
             color = (self.out.isatty() and "NO_COLOR" not in os.environ
                      and os.environ.get("TERM") != "dumb")
-        self.color = bool(color) and _enable_windows_vt()
+        try:
+            tty_out = self.out.isatty()
+        except (AttributeError, ValueError):
+            tty_out = False
+        self.vt = tty_out and _enable_windows_vt()      # ANSI cursor control available
+        self.color = bool(color) and (self.vt or not tty_out)
         try:
             "█░✓›…".encode(getattr(self.out, "encoding", None) or "ascii")
             self.uni = True
@@ -121,6 +126,45 @@ class Term:
             v = self.ask(prompt, str(default))
             if v.isdigit() and 1 <= int(v) <= len(options):
                 return int(v)
+
+    # ---- arrow-key widgets with numbered fallbacks ------------------------
+    def choose(self, prompt: str, options: Sequence[str], default: int = 1,
+               hints: Optional[Sequence[str]] = None) -> int:
+        """1-based choice. Arrow keys on a real terminal, numbered prompt otherwise."""
+        from . import menu
+        if menu.available(self):
+            return menu.select(self, prompt, options, default - 1, hints) + 1
+        labels = [o + (self.dim("  " + hints[i]) if hints and hints[i] else "") for i, o in enumerate(options)]
+        self.say(self.bold(prompt))
+        return self.ask_choice("Choose", labels, default)
+
+    def pick_many(self, prompt: str, items: Sequence[str], checked: Set[int],
+                  details: Optional[Sequence[str]] = None) -> Set[int]:
+        """0-based multi-select. Checklist on a real terminal, number toggles otherwise."""
+        from . import menu
+        if menu.available(self):
+            return menu.checklist(self, prompt, items, checked, details)
+        sel = set(checked)
+        while True:
+            self.say(self.bold(prompt))
+            for i, it in enumerate(items):
+                mark = self.green("[x]") if i in sel else self.dim("[ ]")
+                self.say(f"   {mark} {i + 1:>2}  {it}")
+            v = self.ask("Toggle numbers, or Enter to accept")
+            if not v:
+                if sel:
+                    return sel
+                self.say(self.red("   select at least one"))
+                continue
+            for tok in v.replace(",", " ").split():
+                if tok.isdigit() and 1 <= int(tok) <= len(items):
+                    sel ^= {int(tok) - 1}
+
+    def yes(self, prompt: str, default: bool = True) -> bool:
+        from . import menu
+        if menu.available(self):
+            return menu.confirm(self, prompt, default)
+        return self.ask_yn(prompt, default)
 
     def ask_secret(self, prompt: str, confirm: bool = True, min_len: int = 8) -> str:
         import getpass

@@ -40,6 +40,26 @@ hexredact scan /var/log/nginx --show 10  # dry run with a before/after sample; w
 hexredact redact /var/log/nginx          # do it
 ```
 
+### Interactive mode
+
+Run `hexredact` with no arguments. Menus work with the keyboard:
+
+| Key | Action |
+|---|---|
+| `↑` `↓` (or `j` `k`) | move |
+| `Enter` | select or confirm |
+| `1`-`9` | jump to an option |
+| `Space` | tick or untick a detector |
+| `a` / `n` | all / none |
+| `←` `→` or `y` `n` | yes/no questions |
+| `Esc` or `Ctrl-C` | quit, writing nothing |
+
+It shows a before/after preview and asks before writing anything. When input is piped or the terminal can't handle cursor control, it falls back to numbered prompts. To force the numbered prompts, set `HEXREDACT_NO_MENU=1`.
+
+### Windows: double-click or drag and drop
+
+`hexredact.bat` in the repo root opens the wizard. Drag a log file or folder onto it to start with that path already filled in. It works straight from a clone with no install, and the window stays open until you press Enter.
+
 ## Output layout
 
 | Input | Output |

@@ -58,7 +58,7 @@ hexredact redact /var/log/nginx          # do it
 
 - **Random key (default):** tokens are unique to that run.
 - **Passphrase** (`--passphrase-env VAR`, `--passphrase-file F`, `--ask-passphrase`): the same passphrase gives the same tokens across runs. Use this to correlate separate batches of logs without revealing values.
-- **The map** is written with mode `0600`. Encrypt it with `--encrypt-map` or `--map-passphrase-env VAR` (scrypt + Fernet; needs the `[crypto]` extra).
+- **The map** is written owner-only (`0600`) on Linux and macOS. On Windows it inherits its folder's permissions, so keep it inside your user profile. Encrypt it with `--encrypt-map` or `--map-passphrase-env VAR` (scrypt + Fernet; needs the `[crypto]` extra).
 
 **Mask mode** (`--mode mask`). Values become `[REDACTED:IPV4_PRIV]`. No map is written and nothing can be recovered.
 

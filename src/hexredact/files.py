@@ -91,7 +91,11 @@ def open_out(p: Path) -> IO[str]:
 
 
 def secure_write(p: Path, data: bytes) -> None:
-    """Write with 0600 from creation (no window where the file is world-readable)."""
+    """Create owner-only (0600) on POSIX with no world-readable window.
+
+    On Windows the mode bits are ignored; the file inherits the ACL of its
+    folder (a user-profile folder is private to that user by default).
+    """
     p.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(str(p), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "wb") as f:

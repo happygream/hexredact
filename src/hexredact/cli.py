@@ -23,6 +23,19 @@ from .patterns import DETECTOR_NAMES, DETECTORS
 
 EXIT_OK, EXIT_ERR, EXIT_USAGE, EXIT_RESIDUAL = 0, 1, 2, 3
 
+# Unix permission bits mean nothing on Windows; describe what actually protects the file.
+PROTECTED = "owner-only 0600" if os.name == "posix" else "keep private"
+
+
+def _prog() -> str:
+    """How the user launched us, so printed hints can be pasted back verbatim."""
+    argv0 = Path(sys.argv[0]).name.lower() if sys.argv and sys.argv[0] else ""
+    return "python -m hexredact" if argv0 in ("__main__.py", "-m", "-c", "") else "hexredact"
+
+
+def _q(p) -> str:
+    return f'"{p}"' if " " in str(p) or os.name == "nt" else str(p)
+
 
 def _term(args):
     from .ui import Term
@@ -166,7 +179,7 @@ def _print_result(term, res: JobResult, mode: str) -> None:
     term.section("Result")
     rows = [("redacted", str(lay.redacted)), ("original", str(lay.original))]
     if res.map_written:
-        state = "encrypted" if res.map_encrypted else term.yellow("plaintext, 0600 - treat as sensitive")
+        state = "encrypted" if res.map_encrypted else term.yellow(f"plaintext, {PROTECTED} - treat as sensitive")
         rows.append(("map", f"{lay.map_path}  {term.dim('(')}{state}{term.dim(')')}"))
     rows.append(("report", str(lay.report_path)))
     term.kv(rows)
@@ -180,7 +193,7 @@ def _print_result(term, res: JobResult, mode: str) -> None:
     else:
         term.say("\n   " + term.green("residual scan: clean"))
     if mode == "token":
-        term.say(term.dim(f"\n   look up a token:  hexredact lookup \"{lay.map_path}\" '<TOKEN>'"))
+        term.say(term.dim(f"\n   look up a token:  {_prog()} lookup {_q(lay.map_path)} '<TOKEN>'"))
 
 
 # --------------------------------------------------------------------------
@@ -276,7 +289,7 @@ def cmd_scan(args) -> int:
         for before, after in preview_lines(src, r, exts, args.show):
             term.say("  " + term.red("-") + " " + before[:200])
             term.say("  " + term.green("+") + " " + after[:200])
-    term.say(term.dim("\n   nothing was written. run `hexredact redact " + args.path + "` to apply."))
+    term.say(term.dim(f"\n   nothing was written. run `{_prog()} redact {_q(args.path)}` to apply."))
     return EXIT_OK
 
 
@@ -322,7 +335,7 @@ def cmd_restore(args) -> int:
         term.error(f"{src} not found")
         return EXIT_ERR
     out = restore(entries, src, Path(args.output).resolve() if args.output else None)
-    term.say(f"{term.green('restored')} -> {out} " + term.dim("(0600; contains the original values)"), force=True)
+    term.say(f"{term.green('restored')} -> {out} " + term.dim(f"({PROTECTED}; contains the original values)"), force=True)
     return EXIT_OK
 
 
@@ -394,7 +407,7 @@ def _wizard(term, pre_path: Optional[str]) -> int:
                 if term.ask_yn("Encrypt the reverse map", True):
                     map_pp = term.ask_secret("map passphrase")
             else:
-                term.say(term.yellow("   reverse map will be plaintext (0600). ")
+                term.say(term.yellow(f"   reverse map will be plaintext ({PROTECTED}). ")
                          + term.dim("pip install 'hexredact[crypto]' to encrypt it"))
 
     term.section("Detectors " + term.dim("(heavy profile: everything on)"))

@@ -140,13 +140,12 @@ def test_stdin_token_mode_requires_map():
 
 
 def test_encrypted_map(tmp_path, monkeypatch):
-    pytest.importorskip("cryptography")
     monkeypatch.setenv("MP", "map passphrase!")
     f = tmp_path / "a.log"
     shutil.copy(SAMPLE, f)
     assert run("redact", str(f), "--map-passphrase-env", "MP") == 0
     raw = json.loads((tmp_path / "a_redaction_map.json").read_text())
-    assert raw["hexredact_encrypted"] == 1 and "8.8.8.8" not in json.dumps(raw)
+    assert raw["hexredact_encrypted"] == 2 and "8.8.8.8" not in json.dumps(raw)
     assert main(["restore", str(tmp_path / "a_redaction_map.json"), str(tmp_path / "a_redacted.log"),
                  "--map-passphrase-env", "MP"]) == 0
     assert (tmp_path / "a_restored.log").read_text().splitlines() == SAMPLE.read_text().splitlines()

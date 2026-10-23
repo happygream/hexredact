@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **No dependencies at all.** Map encryption is reimplemented on the standard library (scrypt, HMAC-SHA256 in counter mode, encrypt-then-MAC) and the `[crypto]` extra is gone. Maps encrypted by the earlier pre-release build must be recreated.
 - Interactive mode uses arrow-key menus, a space-to-toggle detector checklist, and inline yes/no questions. No dependencies: `msvcrt` on Windows, `termios` elsewhere. Falls back to numbered prompts when input isn't a terminal.
 - `hexredact.bat` for Windows: double-click to open the wizard, or drag a file or folder onto it.
 - Paths dragged into the wizard have their quotes or escapes stripped.

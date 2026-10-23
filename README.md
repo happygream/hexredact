@@ -26,8 +26,6 @@ Point it at a log file or a directory of logs. It writes a redacted copy you can
 
 ```bash
 pipx install git+https://github.com/happygream/hexredact
-# with encrypted reverse maps:
-pipx install "hexredact[crypto] @ git+https://github.com/happygream/hexredact"
 ```
 
 Or `pip install .` from a clone. You can also run it without installing: `python -m hexredact` from `src/`.
@@ -78,7 +76,7 @@ It shows a before/after preview and asks before writing anything. When input is 
 
 - **Random key (default):** tokens are unique to that run.
 - **Passphrase** (`--passphrase-env VAR`, `--passphrase-file F`, `--ask-passphrase`): the same passphrase gives the same tokens across runs. Use this to correlate separate batches of logs without revealing values.
-- **The map** is written owner-only (`0600`) on Linux and macOS. On Windows it inherits its folder's permissions, so keep it inside your user profile. Encrypt it with `--encrypt-map` or `--map-passphrase-env VAR` (scrypt + Fernet; needs the `[crypto]` extra).
+- **The map** is written owner-only (`0600`) on Linux and macOS. On Windows it inherits its folder's permissions, so keep it inside your user profile. Encrypt it with `--encrypt-map` or `--map-passphrase-env VAR`. This uses only the standard library: scrypt plus HMAC-SHA256 in counter mode with encrypt-then-MAC. The construction is in [SECURITY.md](SECURITY.md).
 
 **Mask mode** (`--mode mask`). Values become `[REDACTED:IPV4_PRIV]`. No map is written and nothing can be recovered.
 
@@ -150,7 +148,7 @@ See [SECURITY.md](SECURITY.md) for reporting issues.
 ## Development
 
 ```bash
-pip install -e ".[dev,crypto]"
+pip install -e ".[dev]"
 pytest -q && ruff check .
 ```
 

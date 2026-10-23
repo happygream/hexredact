@@ -17,7 +17,7 @@ from . import __version__
 from .engine import Redactor, strip_pem
 from .files import DEFAULT_EXTS, collect, normalise_exts, plan_paths
 from .job import JobError, JobResult, preview_lines, redact as run_redact, scan as run_scan
-from .mapfile import (MapError, have_crypto, key_from_passphrase, load_map, lookup,
+from .mapfile import (MapError, key_from_passphrase, load_map, lookup,
                       random_key, restore, write_map, build_map)
 from .patterns import DETECTOR_NAMES, DETECTORS
 
@@ -82,7 +82,7 @@ def _add_output_opts(p: argparse.ArgumentParser) -> None:
     g.add_argument("--move", action="store_true", help="move the source to *_original instead of copying it")
     g.add_argument("--map", metavar="FILE", help="reverse-map path (required when reading stdin in token mode)")
     m = g.add_mutually_exclusive_group()
-    m.add_argument("--encrypt-map", action="store_true", help="prompt for a passphrase and encrypt the map (needs [crypto] extra)")
+    m.add_argument("--encrypt-map", action="store_true", help="prompt for a passphrase and encrypt the reverse map")
     m.add_argument("--map-passphrase-env", metavar="VAR", help="encrypt the map with the passphrase in this env var")
     g.add_argument("--strict", action="store_true", help=f"exit {EXIT_RESIDUAL} if the residual scan finds anything")
     g.add_argument("--json", action="store_true", help="print the result as JSON on stdout")
@@ -133,8 +133,6 @@ def _map_passphrase(args, term) -> Optional[str]:
         return None
     if args.mode != "token":
         return None
-    if not have_crypto():
-        raise SystemExit("error: map encryption needs the crypto extra: pip install 'hexredact[crypto]'")
     return pp or term.ask_secret("map passphrase")
 
 
@@ -454,12 +452,8 @@ def _wizard(term, pre_path: Optional[str]) -> int:
                 key, meta = random_key(), {"key_source": "random"}
             else:
                 key, meta = key_from_passphrase(term.ask_secret("token passphrase")), {"key_source": "passphrase-pbkdf2"}
-            if have_crypto():
-                if term.yes("Encrypt the reverse map", True):
-                    map_pp = term.ask_secret("map passphrase")
-            else:
-                term.say(term.yellow(f"   reverse map will be plaintext ({PROTECTED}). ")
-                         + term.dim("pip install 'hexredact[crypto]' to encrypt it"))
+            if term.yes("Encrypt the reverse map", True):
+                map_pp = term.ask_secret("map passphrase")
 
     picked = term.pick_many("Detectors", [d.desc for d in DETECTORS], set(range(len(DETECTORS))),
                             details=[f"{d.name} -> {d.cat}" for d in DETECTORS])

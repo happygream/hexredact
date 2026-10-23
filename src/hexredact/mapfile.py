@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import datetime as _dt
 import getpass
 import hashlib
@@ -14,6 +13,7 @@ from typing import Dict, Iterable, List, Optional
 from . import __version__
 from .engine import TOKEN_RE, Redactor
 from .files import collect, open_out, read_lines, secure_write
+from .seal import SealError, is_sealed, seal, unseal
 
 KDF_SALT = b"hexredact/v1/token-key"
 KDF_ITERS = 400_000
@@ -38,28 +38,10 @@ def key_fingerprint(key: bytes) -> str:
     return hashlib.sha256(b"fp" + key).hexdigest()[:16]
 
 
-# ---- optional encryption ------------------------------------------------
-
-def have_crypto() -> bool:
-    try:
-        import cryptography  # noqa: F401
-        return True
-    except ImportError:
-        return False
-
-
-def _scrypt(pp: str, salt: bytes) -> bytes:
-    return hashlib.scrypt(pp.encode("utf-8"), salt=salt, n=2 ** 15, r=8, p=1,
-                          maxmem=64 * 2 ** 20, dklen=32)
-
+# ---- encryption (stdlib, see seal.py) ----------------------------------
 
 def encrypt_blob(data: bytes, passphrase: str) -> bytes:
-    from cryptography.fernet import Fernet
-    salt = secrets.token_bytes(16)
-    token = Fernet(base64.urlsafe_b64encode(_scrypt(passphrase, salt))).encrypt(data)
-    return json.dumps({"hexredact_encrypted": 1, "kdf": "scrypt-n32768-r8-p1",
-                       "cipher": "fernet", "salt": base64.b64encode(salt).decode(),
-                       "data": token.decode()}).encode()
+    return json.dumps(seal(data, passphrase), indent=2).encode("ascii")
 
 
 # ---- write / load -------------------------------------------------------
@@ -85,8 +67,8 @@ def write_map(path: Path, doc: Dict, passphrase: Optional[str] = None) -> None:
 
 def is_encrypted(path: Path) -> bool:
     try:
-        return bool(json.loads(path.read_bytes()).get("hexredact_encrypted"))
-    except (OSError, ValueError, AttributeError):
+        return is_sealed(json.loads(path.read_bytes()))
+    except (OSError, ValueError):
         return False
 
 
@@ -95,17 +77,13 @@ def load_map(path: Path, passphrase: Optional[str] = None) -> Dict:
         raw = json.loads(path.read_bytes())
     except (OSError, ValueError) as e:
         raise MapError(f"cannot read map {path}: {e}") from e
-    if raw.get("hexredact_encrypted"):
-        if not have_crypto():
-            raise MapError("map is encrypted; install the extra: pip install 'hexredact[crypto]'")
-        from cryptography.fernet import Fernet, InvalidToken
+    if is_sealed(raw):
         if passphrase is None:
             passphrase = getpass.getpass("Map passphrase: ")
-        key = _scrypt(passphrase, base64.b64decode(raw["salt"]))
         try:
-            raw = json.loads(Fernet(base64.urlsafe_b64encode(key)).decrypt(raw["data"].encode()))
-        except InvalidToken as e:
-            raise MapError("wrong map passphrase") from e
+            raw = json.loads(unseal(raw, passphrase).decode("utf-8", "surrogateescape"))
+        except SealError as e:
+            raise MapError(str(e)) from e
     if "entries" not in raw:
         raise MapError(f"{path} is not a hexredact map")
     return raw
